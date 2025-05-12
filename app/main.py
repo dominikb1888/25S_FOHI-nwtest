@@ -22,7 +22,15 @@ def load_fhir_data():
         except Exception as e:
             print(f"Error loading {file}: {e}")
 
-@app.get("/")
-def read_root():
+@app.get("/patients")
+def get_patients():
     keys = r.keys("fhir:*")
     return [r.json().get(key) for key in keys]
+
+@app.get("/patients/{id}")
+def get_patient_by_id(id):
+    return r.json().get(f"fhir:urn:uuid:{id}")
+
+@app.get("/keys")
+def get_patient_keys():
+    return r.keys("fhir:*")
