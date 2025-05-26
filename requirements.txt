@@ -2,3 +2,4 @@ fastapi
 uvicorn[standard]
 redis
 fhir.resources==8.0.0
+pydicom

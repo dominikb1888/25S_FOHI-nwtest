@@ -1,12 +1,13 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from typing import List
 import redis
 from redis.commands.json.path import Path
 import json
 import os
+from uuid import UUID
 
-from fhir.resources.bundle import Bundle
-from fhir.resources.patient import Patient
+from fhir.resources.R4B.bundle import Bundle
+from fhir.resources.R4B.patient import Patient
 
 app = FastAPI()
 
@@ -32,7 +33,8 @@ def load_fhir_data():
             print(f"Error loading {file}: {e}")
 
 @app.get("/patients", response_model=List[Bundle])
-def get_patients():
+def get_patients(response: Response):
+    response.headers["Content-Type"] = "application/fhir+json"
     keys = r.keys("fhir:*")
     bundles = []
     for key in keys:
@@ -45,7 +47,8 @@ def get_patients():
     return bundles
 
 @app.get("/patients/{id}", response_model=Bundle)
-def get_patient_by_id(id: str):
+def get_patient_by_id(response: Response, id: UUID):
+    response.headers["Content-Type"] = "application/fhir+json"
     key = f"fhir:urn:uuid:{id}"
     data = r.json().get(key)
     if not data:
@@ -59,3 +62,18 @@ def get_patient_by_id(id: str):
 @app.get("/keys", response_model=List[str])
 def get_patient_keys():
     return r.keys("fhir:*")
+
+
+# endpoint: https://pacs.hospital.org (-> Get from actual app context)
+# route: /wado-rs/
+# paraemeters:
+# - studies/1.2.250.1.59.40211.12345678.678910 (study_uuid)
+# - series/1.2.250.1.59.40211.789001276.14556172.67789 (series_uuid)
+# - /thumbnail
+@app.get("/wado-rs/studies/{study_uuid}/series/{series_uuid}/thumbnail", response_model=List)
+def get_images(study_uuid: UUID, series_uuid: UUID):
+    # retrieve dicom image based on three uuids (study, series, instance)
+    # r.get("dicom:studies:1938d290dxc0su0eue2e9:series:2198349ejs90an09:*)
+    # pixel array data, convert and store on disk
+    # Display images on site using HTML Template
+    pass
