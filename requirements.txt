@@ -1,5 +1,5 @@
-fastapi
-uvicorn[standard]
-redis
+fastapi[standard]>=0.115.0
+uvicorn[standard]>=0.12.0
+redis==6.1.0
 fhir.resources==8.0.0
-pydicom
+pydicom==3.0.1

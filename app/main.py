@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response, Body
 from typing import List
 import redis
 from redis.commands.json.path import Path
@@ -46,10 +46,19 @@ def get_patients(response: Response):
             print(f"Invalid FHIR bundle in Redis key {key}: {e}")
     return bundles
 
+
+@app.post("/patient/new") # Do we need a response model?
+def create_patient(data: str = Body()): # Can we be more precise here?
+    uuid = "a14258f7-4baf-5c34-9264-b1f585f3092c" #TODO: hard-coded UUID for testing!!!
+    # Validate as FHIR Bundle
+    bundle = Patient.model_validate(data)
+    return r.json().set(f"fhir:{uuid}", "$", bundle.json())
+
+
 @app.get("/patients/{id}", response_model=Bundle)
 def get_patient_by_id(response: Response, id: UUID):
     response.headers["Content-Type"] = "application/fhir+json"
-    key = f"fhir:urn:uuid:{id}"
+    key = f"fhir:{id}"
     data = r.json().get(key)
     if not data:
         raise HTTPException(status_code=404, detail="Patient not found")
