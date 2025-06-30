@@ -9,9 +9,8 @@ with open("heart_rate.csv") as f:
     csvdata = csv.reader(f, delimiter=',', quotechar='"')
     next(csvdata)
     for row in csvdata:
-        timestamps.append(datetime.strptime(row[0], '%Y-%m-%dT%H:%M:%S
-            .%fZ'))
-    heartrates.append(int(row[1]))
+        timestamps.append(datetime.strptime(row[0], '%Y-%m-%dT%H:%M:%S .%fZ'))
+        heartrates.append(int(row[1]))
 
 intervals = [(timestamps[i+1] - timestamps[i]).seconds for i in range(0, len(timestamps)-1)]
 count = Counter(intervals)
