@@ -1,18 +1,70 @@
-from fastapi import FastAPI, HTTPException, Response, Body
-from typing import List
-import redis
-from redis.commands.json.path import Path
+from collections import Counter
+import csv
+from datetime import datetime, timedelta
 import json
 import os
+from typing import List
 from uuid import UUID
+
+from fastapi import FastAPI, HTTPException, Response, Body
 
 from fhir.resources.R4B.bundle import Bundle
 from fhir.resources.R4B.patient import Patient
+from fhir.resources.R4B.sampleddata import SampledData
+from fhir.resources.R4B.observation import Observation
+from fhir.resources.R4B.quantity import Quantity
+
+import redis
+from redis.commands.json.path import Path
+
+
 
 app = FastAPI()
 
 # Connect to Redis
 r = redis.Redis(host="redis", port=6379, decode_responses=True)
+
+
+def clean_heartrate_data(filename) -> dict:
+    heartrates = []
+    timestamps = []
+
+    with open(filename) as f:
+        csvdata = csv.reader(f, delimiter=',', quotechar='"')
+        next(csvdata)
+        for row in csvdata:
+            timestamps.append(datetime.strptime(row[0], '%Y-%m-%dT%H:%M:%S.%f%z'))
+            heartrates.append(int(row[1]))
+
+    intervals = [(timestamps[i+1] - timestamps[i]).seconds for i in range(0, len(timestamps)-1)]
+    count = Counter(intervals)
+    default_interval, _ = count.most_common()[0]
+
+    for j, interval in enumerate(intervals):
+        gapsum = 0
+        delta = interval - default_interval
+        if interval != default_interval:
+            for i in range(1, interval-delta+1):
+                offset = j + gapsum + i
+                existing = timestamps[j + gapsum]
+                timestamps.insert(offset,
+                                  datetime(existing.year,
+                                           existing.month,
+                                           existing.day,
+                                           existing.hour,
+                                           existing.minute,
+                                           existing.second + i,
+                                           existing.microsecond,
+                                           existing.tzinfo
+                                           ))
+                heartrates.insert(offset, 'E')
+
+        gapsum += delta
+
+    timestamps = [dt.isoformat() for dt in timestamps]
+
+    return dict(zip(timestamps, heartrates))
+
 
 @app.on_event("startup")
 def load_fhir_data():
@@ -86,3 +138,28 @@ def get_images(study_uuid: UUID, series_uuid: UUID):
     # pixel array data, convert and store on disk
     # Display images on site using HTML Template
     pass
+
+@app.get("/heartrates", response_model=dict)
+def get_heartrates():
+    # {
+    # "2025-06-23T08:57:58.297356Z": 60
+    # ...
+    #}
+    return clean_heartrate_data("csv/heart_rate.csv")
+    # 1. load data from csv
+    # 2. send it through the data cleaner, which pads the data with symbols for missing values (
+    # - E: error - no valid measurement available for this data point
+    # - L: below detection point - the value was below the device's detection limit (lowerLimit, which must be provided if this code is used)
+    # - U: above detection point - the value was above the device's detection limit (upperLimit, which must be provided if this code is used))
+
+@app.get("/fhir_heartrates", response_model=SampledData)
+def get_fhir_heartrates():
+    csv_data = clean_heartrate_data("csv/heart_rate.csv")
+    string_values = " ".join([str(i) for i in csv_data.values()])
+    return SampledData(
+        data=string_values,
+        period=1000,
+        dimensions=1,
+        origin=Quantity()
+    )
+
