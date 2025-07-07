@@ -13,6 +13,9 @@ from fhir.resources.R4B.patient import Patient
 from fhir.resources.R4B.sampleddata import SampledData
 from fhir.resources.R4B.observation import Observation
 from fhir.resources.R4B.quantity import Quantity
+from fhir.resources.R4B.fhirtypes import ReferenceType
+from fhir.resources.R4B.codeableconcept import CodeableConcept
+from fhir.resources.R4B.reference import Reference
 
 import redis
 from redis.commands.json.path import Path
@@ -152,14 +155,30 @@ def get_heartrates():
     # - L: below detection point - the value was below the device's detection limit (lowerLimit, which must be provided if this code is used)
     # - U: above detection point - the value was above the device's detection limit (upperLimit, which must be provided if this code is used))
 
-@app.get("/fhir_heartrates", response_model=SampledData)
+@app.get("/fhir_heartrates", response_model=Observation)
 def get_fhir_heartrates():
     csv_data = clean_heartrate_data("csv/heart_rate.csv")
     string_values = " ".join([str(i) for i in csv_data.values()])
-    return SampledData(
+    sampled_data = SampledData(
         data=string_values,
         period=1000,
         dimensions=1,
         origin=Quantity()
     )
 
+    observation = Observation(
+        id = "smartwatch",
+        status = "final",
+        category = [ CodeableConcept() ],
+        code = CodeableConcept(),
+        subject = Reference(),
+        effectiveDateTime = "2015-02-19T09:30:35+01:00", # TODO: DUMMY!!! How do we get the correct timestamp of the first measurement?
+        performer = [ Reference() ],
+        device = Reference(), #What name should our device have?
+        component = [{
+            "code": CodeableConcept(),
+            "valueSampledData": sampled_data,
+        }]
+    )
+
+    return observation
